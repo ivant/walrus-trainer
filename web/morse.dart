@@ -13,18 +13,23 @@ void main() {
 class TrainerUI {
   SelectElement levelSelect;
   TextInputElement alphabetElem;
+  SelectElement letterCountSelect;
   ButtonElement startStopButton;
   Element playedLetterElem;
   Element typedLetterElem;
   Element tardinessElem;
 
   Trainer trainer = new Trainer();
+  Guess currentGuess = null;
+
+  int letterCount = 1;
 
   bool started = false;
 
   TrainerUI({int level: 5}) {
     levelSelect = querySelector("#level");
     alphabetElem = querySelector("#alphabet");
+    letterCountSelect = querySelector("#letterCount");
     startStopButton = querySelector("#startStopButton");
     playedLetterElem = querySelector("#playedLetter");
     typedLetterElem = querySelector("#typedLetter");
@@ -32,6 +37,7 @@ class TrainerUI {
 
     assert(levelSelect != null);
     assert(alphabetElem != null);
+    assert(letterCountSelect != null);
     assert(startStopButton != null);
     assert(playedLetterElem != null);
     assert(typedLetterElem != null);
@@ -39,8 +45,10 @@ class TrainerUI {
 
     KochMethod.populateSelectWithLevels(levelSelect, level);
     updateAlphabet();
+    updateTrainerWidth();
 
     levelSelect.onChange.listen((e) => updateAlphabet());
+    letterCountSelect.onChange.listen((e) => updateTrainerWidth());
     startStopButton.onClick.listen((d) => startStopClicked());
     document.onKeyUp.listen(onKeyUp);
     startStopButton.focus();
@@ -58,9 +66,14 @@ class TrainerUI {
     }
   }
 
+  void setConfigurationEnabledStatus(bool enabled) {
+    levelSelect.disabled = !enabled;
+    alphabetElem.disabled = !enabled;
+    letterCountSelect.disabled = !enabled;
+  }
+
   void stop() {
-    levelSelect.disabled = false;
-    alphabetElem.disabled = false;
+    setConfigurationEnabledStatus(true);
 
     startStopButton.focus();
 
@@ -69,8 +82,7 @@ class TrainerUI {
   }
 
   void start() {
-    levelSelect.disabled = true;
-    alphabetElem.disabled = true;
+    setConfigurationEnabledStatus(false);
 
     startStopButton.blur();
 
@@ -78,7 +90,8 @@ class TrainerUI {
     started = true;
 
     trainer.setAlphabet(alphabetElem.value);
-    trainer.restart();
+    trainer.setLetterCount(letterCount);
+    currentGuess = trainer.restart();
   }
 
   void onKeyUp(KeyboardEvent k) {
@@ -97,29 +110,43 @@ class TrainerUI {
         trainer.onTypedLetter(new String.fromCharCode(k.keyCode));
         break;
     }
-    updateView();
-    trainer.playNew();
+    if (currentGuess.completed) {
+      updateView();
+      currentGuess = trainer.playNew();
+    }
   }
 
   void updateView() {
-    playedLetterElem.text = trainer.lastGuess.expected;
+    playedLetterElem.text = currentGuess.expected;
     typedLetterElem.classes.removeAll(['correct', 'incorrect']);
 
-    typedLetterElem.classes.add(trainer.lastGuess.successful ?
+    typedLetterElem.classes.add(currentGuess.successful ?
         'correct' : 'incorrect');
-    typedLetterElem.text = trainer.lastGuess.guessed;
-    tardinessElem.text = trainer.lastGuess.duration.toStringAsFixed(3);
+    typedLetterElem.text = currentGuess.guessed;
+    tardinessElem.text = currentGuess.duration.toStringAsFixed(3);
+  }
+
+  void updateTrainerWidth() {
+    letterCount = int.parse(letterCountSelect.value);
+
+    String boxWidth = letterCount.toString() +'.5em';
+    playedLetterElem.style.width = boxWidth;
+    typedLetterElem.style.width = boxWidth;
   }
 }
 
 class Guess {
   String expected;
-  String guessed;
-  double duration;
+  DateTime endOfSound;
+  double duration = double.NAN;
 
-  Guess(this.expected, this.guessed, this.duration);
+  String guessed = '';
+  bool aborted = false;
+
+  Guess(this.expected, this.endOfSound);
+
   bool get successful => (expected == guessed);
-  bool get skipped => (guessed == '');
+  bool get completed => (aborted || guessed.length >= expected.length);
 }
 
 class Trainer {
@@ -129,12 +156,10 @@ class Trainer {
   final MorseAudio morseAudio = new MorseAudio(new AudioContext());
 
   String alphabet;
+  int letterCount;
 
-  Guess lastGuess;
-  String lastLetter = '';
-  DateTime lastLetterTimestamp;
+  Guess currentGuess;
   Map<String,double> letterDelayEMA = {};
-  bool waitingForInput = false;
 
   Trainer() {
     MorseCode.initShortCodes();
@@ -145,23 +170,38 @@ class Trainer {
   }
 
   void onTypedLetter(String typedLetter) {
-    if (!waitingForInput) {
+    if (currentGuess == null) {
       return;
     }
 
-    waitingForInput = false;
-
-    DateTime now = new DateTime.now();
-    double dur = max(0.0, now.difference(lastLetterTimestamp).inMilliseconds.toDouble() / 1000.0);
-
-    typedLetter = typedLetter.toUpperCase();
-    if (lastLetter != typedLetter) {
-      onMistake(lastLetter, typedLetter, dur);
+    if (typedLetter == ' ') {
+      currentGuess.aborted = true;
     } else {
-      onCorrectAnswer(typedLetter, dur);
+      currentGuess.guessed += typedLetter.toUpperCase();
     }
 
-    lastGuess = new Guess(lastLetter, typedLetter, dur);
+    if (currentGuess.completed) {
+      DateTime now = new DateTime.now();
+      currentGuess.duration = max(0.0, now.difference(currentGuess.endOfSound).inMilliseconds.toDouble() / 1000.0);
+
+      scoreGuess(currentGuess);
+
+      currentGuess = null;
+    }
+  }
+
+  void scoreGuess(Guess guess) {
+    for (int i = 0; i < guess.guessed.length && i < guess.expected.length; ++i) {
+      if (guess.guessed[i] == guess.expected[i]) {
+        onCorrectAnswer(guess.guessed[i], guess.duration);
+      } else {
+        onMistake(guess.expected[i], guess.guessed[i], guess.duration);
+      }
+    }
+
+    for (int i = guess.guessed.length; i < guess.expected.length; ++i) {
+      onNotTyped(guess.expected[i]);
+    }
   }
 
   void onMistake(String expected, String typed, double duration) {
@@ -173,6 +213,16 @@ class Trainer {
 
   void onCorrectAnswer(String typed, double duration) {
     letterDelayEMA[typed] = ALPHA * duration + (1.0-ALPHA) * letterDelayEMA[typed];
+  }
+
+  void onNotTyped(String letter) {
+    if (letterDelayEMA.containsKey(letter)) {
+      letterDelayEMA[letter] *= MU;
+    }
+  }
+
+  void setLetterCount(int letterCount) {
+    this.letterCount = letterCount;
   }
 
   void setAlphabet(String alphabet) {
@@ -206,28 +256,39 @@ class Trainer {
     return chosenLetter;
   }
 
-  void restart() {
-    waitingForInput = false;
-    playNew();
+  String chooseLetters() {
+    String letters = '';
+    for (int i = 0; i < letterCount; ++i) {
+      letters += chooseLetter();
+    }
+    return letters;
   }
 
-  void playNew() {
-    if (!waitingForInput) {
-      lastLetter = chooseLetter();
+  Guess restart() {
+    currentGuess = null;
+    return playNew();
+  }
 
-      waitingForInput = true;
+  Guess playNew() {
+    if (currentGuess == null) {
+      String letters = chooseLetters();
 
       DateTime now = new DateTime.now();
-      double duration = morseAudio.play(lastLetter);
+      double duration = morseAudio.play(letters);
 
       int durationSec = duration.floor();
       int durationMillis = ((duration - durationSec)*1000).floor();
 
       // TODO(ivant): request Duration(double sec) constructor
-      lastLetterTimestamp = now.add(new Duration(
+      DateTime endOfSound = now.add(new Duration(
           seconds: durationSec,
           milliseconds: durationMillis
         ));
+
+      currentGuess = new Guess(letters, endOfSound);
+      return currentGuess;
+    } else {
+      return null;
     }
   }
 }
