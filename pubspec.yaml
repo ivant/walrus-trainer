@@ -1,4 +1,4 @@
-name: morse
-description: A sample web application
+name: walrus
+description: Morse Code Trainer
 dependencies:
   browser: any
