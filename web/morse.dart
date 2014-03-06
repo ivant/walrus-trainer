@@ -110,20 +110,32 @@ class TrainerUI {
         trainer.onTypedLetter(new String.fromCharCode(k.keyCode));
         break;
     }
+    updateView();
     if (currentGuess.completed) {
-      updateView();
       currentGuess = trainer.playNew();
     }
   }
 
+  static String repeatString(String foo, int count) {
+    return new List<String>.filled(count, foo).join();
+  }
+
   void updateView() {
-    playedLetterElem.text = currentGuess.expected;
     typedLetterElem.classes.removeAll(['correct', 'incorrect']);
 
-    typedLetterElem.classes.add(currentGuess.successful ?
-        'correct' : 'incorrect');
-    typedLetterElem.text = currentGuess.guessed;
-    tardinessElem.text = currentGuess.duration.toStringAsFixed(3);
+    if (!currentGuess.completed) {
+      playedLetterElem.style.color = '#888';
+      typedLetterElem.text = currentGuess.guessed +
+          repeatString('·', letterCount - currentGuess.guessed.length);
+    } else {
+      playedLetterElem.style.removeProperty('color');
+      playedLetterElem.text = currentGuess.expected;
+
+      typedLetterElem.classes.add(currentGuess.successful ?
+         'correct' : 'incorrect');
+     typedLetterElem.text = currentGuess.guessed;
+     tardinessElem.text = currentGuess.duration.toStringAsFixed(3);
+    }
   }
 
   void updateTrainerWidth() {
@@ -166,7 +178,7 @@ class Trainer {
   }
 
   void skip() {
-    onTypedLetter('');
+    onTypedLetter(' ');
   }
 
   void onTypedLetter(String typedLetter) {
