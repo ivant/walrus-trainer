@@ -15,13 +15,25 @@ h2 {
   text-align: center;
 }
 
-#levelSidebar, #alphabetBox, #trainer {
+#levelSidebar, #alphabetBox, #trainer, #letterChart {
   background: #444;
   padding: 1em;
 }
 
-#alphabetBox, #trainer {
-  margin-left: 1em;
+#alphabetBox, #trainer, #letterChart {
+  margin-left: 0.5em;
+}
+
+#letterChart {
+  width: 600px;
+  height: 360px;
+  background: #eee;
+  padding: 1em;
+}
+
+#letterChart > div {
+  width: 100%;
+  height: 100%;
 }
 
 #trainer {

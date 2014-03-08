@@ -3,6 +3,7 @@ import 'dart:html';
 import 'dart:math';
 import 'dart:web_audio';
 import '../lib/kochmethod.dart';
+import '../lib/letterchart.dart';
 import '../lib/morsecode.dart';
 import '../lib/morseaudio.dart';
 
@@ -18,6 +19,7 @@ class TrainerUI {
   Element playedLetterElem;
   Element typedLetterElem;
   Element tardinessElem;
+  Element letterChart;
 
   Trainer trainer = new Trainer();
   Guess currentGuess = null;
@@ -34,6 +36,7 @@ class TrainerUI {
     playedLetterElem = querySelector("#playedLetter");
     typedLetterElem = querySelector("#typedLetter");
     tardinessElem = querySelector("#tardiness");
+    letterChart = querySelector("#letterChart");
 
     assert(levelSelect != null);
     assert(alphabetElem != null);
@@ -42,6 +45,7 @@ class TrainerUI {
     assert(playedLetterElem != null);
     assert(typedLetterElem != null);
     assert(tardinessElem != null);
+    assert(letterChart != null);
 
     KochMethod.populateSelectWithLevels(levelSelect, level);
     updateAlphabet();
@@ -135,7 +139,13 @@ class TrainerUI {
          'correct' : 'incorrect');
      typedLetterElem.text = currentGuess.guessed;
      tardinessElem.text = currentGuess.duration.toStringAsFixed(3);
+
+     updateLetterChart();
     }
+  }
+
+  void updateLetterChart() {
+    plotLetterChart(letterChart, trainer.letterDelayEMA);
   }
 
   void updateTrainerWidth() {

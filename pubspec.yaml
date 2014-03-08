@@ -2,3 +2,4 @@ name: walrus
 description: Morse Code Trainer
 dependencies:
   browser: any
+  chart: any
