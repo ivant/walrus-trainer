@@ -11,8 +11,13 @@ h1, h2, p {
   color: #eee;
 }
 
-h2 {
+#levelSidebar > h2, #alphabetBox > h2, #trainer > h2 {
   text-align: center;
+}
+
+
+#levelSidebar > h2:first-child, #alphabetBox > h2:first-child, #trainer > h2:first-child {
+  margin-top: 0;
 }
 
 #levelSidebar, #alphabetBox, #trainer, #letterChart {
@@ -79,11 +84,20 @@ h2 {
   color: #c00 !important;
 }
 
-#copyright {
+#info {
   font-size: 8pt;
   color: #aaa;
 }
 
-#copyright > a {
-  color: #aaa;
+#info h2 {
+  margin-bottom: 0.2em;
+}
+
+#info ul {
+  margin-top: 0.1em;
+  margin-bottom: 0.1em;
+}
+
+#info a {
+  color: #bbb;
 }
