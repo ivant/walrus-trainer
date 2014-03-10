@@ -66,7 +66,7 @@ class MorseCode {
   static String encodeElement(String elem) {
     initShortCodes();
     String s = null;
-    return (s = shortCodes[elem]) != null ? s : (
+    return (s = shortCodes[elem.toLowerCase()]) != null ? s : (
            (s = longCodes[elem]) != null ? s : (
            (s = prosigns[elem]) != null ? s : ''));
   }

@@ -1,5 +1,6 @@
 library kochmethod;
 
+import 'dart:collection';
 import 'dart:html';
 
 class KochMethod {
@@ -26,7 +27,9 @@ class KochMethod {
     '6X'
   ];
 
-  static void populateSelectWithLevels(SelectElement select, int selectLevels) {
+  static void populateSelectWithLevels(SelectElement select, List<int> selectedLevels) {
+    Set<int> selectedLevelsSet = new HashSet<int>.from(selectedLevels);
+
     select.childNodes.toList().forEach((Node n) => n.remove());
     select.setAttribute("size", levels.length.toString());
 
@@ -34,7 +37,7 @@ class KochMethod {
       OptionElement option = new OptionElement(
           data: "${i+1}: ${levels[i][0]} ${levels[i][1]}",
           value: i.toString(),
-          selected: i < selectLevels);
+          selected: selectedLevelsSet.contains(i));
       select.append(option);
     }
   }

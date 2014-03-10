@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:html';
 import 'dart:math';
 import 'dart:web_audio';
@@ -28,7 +29,11 @@ class TrainerUI {
 
   bool started = false;
 
-  TrainerUI({int level: 5}) {
+  final String LS_ALPHABET = "alphabet";
+  final String LS_LEVEL_SELECT = "levelSelect";
+  final String LS_LETTER_COUNT = "trainerWidth";
+
+  TrainerUI() {
     levelSelect = querySelector("#level");
     alphabetElem = querySelector("#alphabet");
     letterCountSelect = querySelector("#letterCount");
@@ -45,19 +50,74 @@ class TrainerUI {
     assert(typedLetterElem != null);
     assert(letterChart != null);
 
-    KochMethod.populateSelectWithLevels(levelSelect, level);
-    updateAlphabet();
-    updateTrainerWidth();
+    loadLevelSelect();
+    loadAlphabet();
+    loadLetterCount();
+    updateLetterCount();
 
-    levelSelect.onChange.listen((e) => updateAlphabet());
-    letterCountSelect.onChange.listen((e) => updateTrainerWidth());
+    levelSelect.onChange.listen((e) => updateLevelSelect());
+    alphabetElem.onChange.listen((e) => updateAlphabet());
+    letterCountSelect.onChange.listen((e) => updateLetterCount());
     startStopButton.onClick.listen((d) => startStopClicked());
     document.onKeyUp.listen(onKeyUp);
     startStopButton.focus();
   }
 
-  void updateAlphabet() {
+  void loadLevelSelect() {
+    String indicesJson = window.localStorage[LS_LEVEL_SELECT];
+    List<int> indices = [];
+    if (indicesJson != null) {
+      try {
+        JsonDecoder decoder = new JsonDecoder(null);
+        indices = decoder.convert(indicesJson);
+        indices.forEach((int i) {
+          if (i < 0 || i >= levelSelect.length) {
+            throw new Exception("Wrong selected level index: ${i}");
+          }
+        });
+      } catch (e) {
+        window.localStorage.remove(LS_LEVEL_SELECT);
+      }
+    }
+    if (indices.length == 0) {
+      indices = [0, 1, 2, 3, 4];
+    }
+    KochMethod.populateSelectWithLevels(levelSelect, indices);
+  }
+
+  void loadAlphabet() {
+    String alphabet = window.localStorage[LS_ALPHABET];
+    if (alphabet == null) {
+      alphabet = KochMethod.getAlphabet(levelSelect);
+    }
+    alphabetElem.value = alphabet;
+  }
+
+  void loadLetterCount() {
+    String letterCountStr = window.localStorage[LS_LETTER_COUNT];
+    int selected = 3;
+    if (letterCountStr != null) {
+      try {
+        selected = int.parse(letterCountStr);
+      } catch (e) {
+      }
+    }
+    letterCountSelect.options[letterCountSelect.selectedIndex].selected = false;
+    letterCountSelect.options[selected].selected = true;
+  }
+
+  void updateLevelSelect() {
     alphabetElem.value = KochMethod.getAlphabet(levelSelect);
+
+    window.localStorage[LS_ALPHABET] = alphabetElem.value;
+
+    List<int> indices = levelSelect.selectedOptions.map((o) => o.index).toList();
+    JsonEncoder encoder = new JsonEncoder(null);
+    window.localStorage[LS_LEVEL_SELECT] = encoder.convert(indices);
+  }
+
+  void updateAlphabet() {
+    window.localStorage[LS_ALPHABET] = alphabetElem.value;
   }
 
   void startStopClicked() {
@@ -151,8 +211,9 @@ class TrainerUI {
     plotLetterChart(letterChart, trainer.letterDelayEMA);
   }
 
-  void updateTrainerWidth() {
+  void updateLetterCount() {
     letterCount = int.parse(letterCountSelect.value);
+    window.localStorage[LS_LETTER_COUNT] = (letterCount - 1).toString();
 
     String boxWidth = letterCount.toString() +'.5em';
     playedLetterElem.style.width = boxWidth;
@@ -198,10 +259,42 @@ class Trainer {
   int letterCount;
 
   Guess currentGuess;
-  Map<String,double> letterDelayEMA = {};
+
+  final String LS_KEY_LETTER_DELAY_EMA = "letterDelayEMA";
+  Map<String, double> letterDelayEMA;
 
   Trainer() {
     MorseCode.initShortCodes();
+    letterDelayEMA = loadLetterDelays();
+  }
+
+  Map<String, double> loadLetterDelays() {
+    String letterDelayJSON = window.localStorage[LS_KEY_LETTER_DELAY_EMA];
+    if (letterDelayJSON != null) {
+      JsonDecoder decoder = new JsonDecoder(null);
+      try {
+        Map<String, double> result = decoder.convert(letterDelayJSON);
+        // validate data
+        result.forEach((String key, double value) {
+            if (MorseCode.encodeElement(key) == '') {
+              throw new Exception("unsupported key ${key}");
+            }
+            if (value <= 0.0 || !value.isFinite) {
+              throw new Exception("unsupported value ${value.toString()}");
+            }
+        });
+        return result;
+      } catch (e) {
+        window.localStorage.remove(LS_KEY_LETTER_DELAY_EMA);
+      }
+    }
+    return <String, double>{};
+  }
+
+  void saveLetterDelays() {
+    JsonEncoder encoder = new JsonEncoder(null);
+    window.localStorage[LS_KEY_LETTER_DELAY_EMA] =
+        encoder.convert(letterDelayEMA);
   }
 
   void skip() {
@@ -241,6 +334,8 @@ class Trainer {
     for (int i = durations.length; i < guess.expected.length; ++i) {
       onNotTyped(guess.expected[i]);
     }
+
+    saveLetterDelays();
   }
 
   void onMistake(String expected, String typed, double duration) {
