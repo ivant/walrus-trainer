@@ -71,11 +71,14 @@ class MorseCode {
            (s = prosigns[elem]) != null ? s : ''));
   }
 
+  // returns a list of morse code sequences, one per word character
   static List<String> encodeWord(String word) {
     return word.toLowerCase().runes.map((r) =>
         encodeElement(new String.fromCharCode(r))
       ).toList();
   }
+
+  //returns a list of encodeWord results, one per word
   static List<List<String>> encodeText(String text) {
     List<String> words = text.split(r'\s+');
     return words.map(encodeWord).toList();

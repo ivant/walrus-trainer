@@ -6,6 +6,7 @@ import '../lib/kochmethod.dart';
 import '../lib/letterchart.dart';
 import '../lib/morsecode.dart';
 import '../lib/morseaudio.dart';
+import '../lib/utils.dart';
 
 void main() {
   new TrainerUI();
@@ -18,7 +19,6 @@ class TrainerUI {
   ButtonElement startStopButton;
   Element playedLetterElem;
   Element typedLetterElem;
-  Element tardinessElem;
   Element letterChart;
 
   Trainer trainer = new Trainer();
@@ -35,7 +35,6 @@ class TrainerUI {
     startStopButton = querySelector("#startStopButton");
     playedLetterElem = querySelector("#playedLetter");
     typedLetterElem = querySelector("#typedLetter");
-    tardinessElem = querySelector("#tardiness");
     letterChart = querySelector("#letterChart");
 
     assert(levelSelect != null);
@@ -44,7 +43,6 @@ class TrainerUI {
     assert(startStopButton != null);
     assert(playedLetterElem != null);
     assert(typedLetterElem != null);
-    assert(tardinessElem != null);
     assert(letterChart != null);
 
     KochMethod.populateSelectWithLevels(levelSelect, level);
@@ -114,7 +112,13 @@ class TrainerUI {
         trainer.onTypedLetter(new String.fromCharCode(k.keyCode));
         break;
     }
+
+    if (currentGuess.completed) {
+      trainer.scoreGuess(currentGuess);
+    }
+
     updateView();
+
     if (currentGuess.completed) {
       currentGuess = trainer.playNew();
     }
@@ -138,7 +142,6 @@ class TrainerUI {
       typedLetterElem.classes.add(currentGuess.successful ?
          'correct' : 'incorrect');
      typedLetterElem.text = currentGuess.guessed;
-     tardinessElem.text = currentGuess.duration.toStringAsFixed(3);
 
      updateLetterChart();
     }
@@ -158,17 +161,31 @@ class TrainerUI {
 }
 
 class Guess {
-  String expected;
-  DateTime endOfSound;
-  double duration = double.NAN;
+  final String expected;
+  final double startTime;
+  final List<double> letterEndTimestamps;
+  List<double> guessesTimestamps = [];
 
   String guessed = '';
   bool aborted = false;
 
-  Guess(this.expected, this.endOfSound);
+  Guess(this.expected, this.startTime, this.letterEndTimestamps);
 
   bool get successful => (expected == guessed);
   bool get completed => (aborted || guessed.length >= expected.length);
+
+  void nextLetterGuess(String letter, double timestamp) {
+    guessed += letter;
+    guessesTimestamps.add(timestamp);
+  }
+
+  List<double> getDurations() {
+    List<double> durations = [];
+    for (int i = 0; i < guessesTimestamps.length; ++i) {
+      durations.add(max(0, guessesTimestamps[i] - letterEndTimestamps[i]));
+    }
+    return durations;
+  }
 }
 
 class Trainer {
@@ -192,6 +209,8 @@ class Trainer {
   }
 
   void onTypedLetter(String typedLetter) {
+    double now = morseAudio.currentTime();
+
     if (currentGuess == null) {
       return;
     }
@@ -199,29 +218,27 @@ class Trainer {
     if (typedLetter == ' ') {
       currentGuess.aborted = true;
     } else {
-      currentGuess.guessed += typedLetter.toUpperCase();
-    }
-
-    if (currentGuess.completed) {
-      DateTime now = new DateTime.now();
-      currentGuess.duration = max(0.0, now.difference(currentGuess.endOfSound).inMilliseconds.toDouble() / 1000.0);
-
-      scoreGuess(currentGuess);
-
-      currentGuess = null;
+      currentGuess.nextLetterGuess(typedLetter.toUpperCase(), now);
     }
   }
 
   void scoreGuess(Guess guess) {
-    for (int i = 0; i < guess.guessed.length && i < guess.expected.length; ++i) {
+    assert(guess.completed);
+
+    List<double> durations = guess.getDurations();
+
+    assert(durations.length == guess.guessed.length);
+    assert(guess.guessed.length <= guess.expected.length);
+
+    for (int i = 0; i < durations.length; ++i) {
       if (guess.guessed[i] == guess.expected[i]) {
-        onCorrectAnswer(guess.guessed[i], guess.duration);
+        onCorrectAnswer(guess.guessed[i], durations[i]);
       } else {
-        onMistake(guess.expected[i], guess.guessed[i], guess.duration);
+        onMistake(guess.expected[i], guess.guessed[i], durations[i]);
       }
     }
 
-    for (int i = guess.guessed.length; i < guess.expected.length; ++i) {
+    for (int i = durations.length; i < guess.expected.length; ++i) {
       onNotTyped(guess.expected[i]);
     }
   }
@@ -292,25 +309,13 @@ class Trainer {
   }
 
   Guess playNew() {
-    if (currentGuess == null) {
-      String letters = chooseLetters();
+    String letters = chooseLetters();
 
-      DateTime now = new DateTime.now();
-      double duration = morseAudio.play(letters);
+    Tuple<double, Iterable<double>> timestampsTuple = morseAudio.play(letters);
+    double startTime = timestampsTuple.fst;
+    List<double> letterEndTimestamps = timestampsTuple.snd;
 
-      int durationSec = duration.floor();
-      int durationMillis = ((duration - durationSec)*1000).floor();
-
-      // TODO(ivant): request Duration(double sec) constructor
-      DateTime endOfSound = now.add(new Duration(
-          seconds: durationSec,
-          milliseconds: durationMillis
-        ));
-
-      currentGuess = new Guess(letters, endOfSound);
-      return currentGuess;
-    } else {
-      return null;
-    }
+    this.currentGuess = new Guess(letters, startTime, letterEndTimestamps);
+    return this.currentGuess;
   }
 }

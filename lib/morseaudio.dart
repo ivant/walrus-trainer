@@ -1,6 +1,7 @@
 library morseaudio;
 
 import 'morsecode.dart';
+import 'utils.dart';
 import 'dart:core';
 import 'dart:math';
 import 'dart:typed_data';
@@ -14,35 +15,41 @@ class MorseAudio {
       letterGap = 3,
       wordGap = 7;
   double dotDuration;
+  double wpm;
+
+  static final List<double> ramp = new List<double>.generate(11, (x) => (1 - cos(x / 10 * PI)) / 2);
+  static final Float32List rampUp = new Float32List.fromList(ramp);
+  static final Float32List rampDown = new Float32List.fromList(ramp.reversed.toList());
+  double rampDuration;
 
   double frequency = 700.0;
-  double rampLength = 0.1; // measured in a part of a dotDuration
-
-  String calibrationWord = 'PARIS';
+  final double rampLength = 0.1; // measured in a part of a dotDuration
 
   MorseAudio(AudioContext context) {
     this.context = context;
-    wpm = 20;
+    setWpm(20);
   }
 
-  num wpm_;
+  void setWpm(num w, [calibrationWord = 'PARIS']) {
+    wpm = w.toDouble();
+    List<String> mcs = MorseCode.encodeWord(calibrationWord);
+    int duration = (mcs.length - 1) * letterGap;
+    for (var mc in mcs) {
+      duration += (mc.length - 1) * intraCharacterGap +
+          '-'.allMatches(mc).length * dashLength +
+          '.'.allMatches(mc).length;
+    }
+    final int allWordsDuration = (w-1) * wordGap + w * duration;
+    dotDuration = 60.0 / allWordsDuration;
 
-  num get wpm => wpm_;
-      set wpm(num w) {
-        wpm_ = w;
-        List<String> mcs = MorseCode.encodeWord(calibrationWord);
-        int duration = (mcs.length - 1) * letterGap;
-        for (var mc in mcs) {
-          duration += (mc.length - 1) * intraCharacterGap +
-              '-'.allMatches(mc).length * dashLength +
-              '.'.allMatches(mc).length;
-        }
-        int allWordsDuration = (w-1) * wordGap + w * duration;
-        dotDuration = 60.0 / allWordsDuration;
-      }
+    // Initialize volume ramp
+    rampDuration = dotDuration * rampLength;
+  }
 
-  // returns duration in seconds
-  double play(String text) {
+  double currentTime() => context.currentTime;
+
+  // returns the timestamps for the start of the sounds and the end of each played letter
+  Tuple<double, List<double>> play(String text) {
     final List<List<String>> morseWords = MorseCode.encodeText(text);
 
     final OscillatorNode oscillator = context.createOscillator();
@@ -54,56 +61,33 @@ class MorseAudio {
     final AudioParam gain = gainNode.gain;
     gain.value = 0;
 
-    final double rampDuration = dotDuration * rampLength;
-    final List<double> ramp = new List<double>.generate(11, (x) => (1 - cos(x / 10 * PI)) / 2);
-    final Float32List rampUp = new Float32List.fromList(ramp);
-    final Float32List rampDown = new Float32List.fromList(ramp.reversed.toList());
-
     double startTime = context.currentTime;
     double curTime = startTime;
     oscillator.start(curTime);
 
-    bool firstWord = true;
+    final List<double> letterEndTimestamps = [];
 
     for (List<String> letters in morseWords) {
-      // pause between words
-      if (!firstWord) {
-        curTime += dotDuration * wordGap;
-      } else {
-        firstWord = false;
-      }
-
-      // play the word
-      bool firstLetter = true;
       for (String letter in letters) {
-        // pause between letters
-        if (!firstLetter) {
-          curTime += dotDuration * letterGap;
-        } else {
-          firstLetter = false;
-        }
-
-        // play the Letter
-        bool firstElement = true;
         for (var code in letter.runes) {
           var s = new String.fromCharCode(code);
-          // pause between dots/dashes
-          if (!firstElement) {
-            curTime += dotDuration * intraCharacterGap;
-          } else {
-            firstElement = false;
-          }
 
           assert(s == '.' || s == '-');
           double duration = dotDuration * (s == '.' ? 1 : dashLength);
           gain.setValueCurveAtTime(rampUp, curTime, rampDuration);
           gain.setValueCurveAtTime(rampDown, curTime + duration, rampDuration);
           curTime += duration;
+          curTime += dotDuration * intraCharacterGap;
+          letterEndTimestamps.add(curTime);
         }
+        // pause between letters
+        curTime += dotDuration * (letterGap - intraCharacterGap);
       }
+      // pause between words
+      curTime += dotDuration * (wordGap - letterGap);
     }
     oscillator.stop(curTime + dotDuration);
     curTime += rampDuration;
-    return curTime - startTime;
+    return new Tuple(startTime, letterEndTimestamps);
   }
 }
