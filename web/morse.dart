@@ -151,6 +151,9 @@ class TrainerUI {
     String boxWidth = letterCount.toString() +'.5em';
     playedLetterElem.style.width = boxWidth;
     typedLetterElem.style.width = boxWidth;
+
+    playedLetterElem.text = "";
+    typedLetterElem.text = "";
   }
 
   void updateSpeedSelect() {
@@ -190,6 +193,9 @@ class TrainerUI {
 
     startStopButton.text = "Stop";
     started = true;
+
+    playedLetterElem.text = "";
+    typedLetterElem.text = "";
 
     trainer.setAlphabet(alphabetElem.value);
     trainer.setLetterCount(letterCount);
@@ -233,16 +239,18 @@ class TrainerUI {
 
     if (!currentGuess.completed) {
       playedLetterElem.style.color = '#888';
-      typedLetterElem.text = currentGuess.guessed +
-          repeatString('·', letterCount - currentGuess.guessed.length);
     } else {
       playedLetterElem.style.removeProperty('color');
       playedLetterElem.text = currentGuess.expected;
 
       typedLetterElem.classes.add(currentGuess.successful ?
          'correct' : 'incorrect');
-     typedLetterElem.text = currentGuess.guessed;
+    }
 
+    typedLetterElem.text = currentGuess.guessed +
+        repeatString('·', letterCount - currentGuess.guessed.length);
+
+    if (currentGuess.completed) {
      updateLetterChart();
     }
   }
