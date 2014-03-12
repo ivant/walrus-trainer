@@ -17,7 +17,8 @@ class MorseAudio {
   double dotDuration;
   double wpm;
 
-  static final List<double> ramp = new List<double>.generate(11, (x) => (1 - cos(x / 10 * PI)) / 2);
+  static final int rampSize = 6;
+  static final List<double> ramp = new List<double>.generate(rampSize+1, (x) => (1 - cos(x / rampSize * PI)) / 2);
   static final Float32List rampUp = new Float32List.fromList(ramp);
   static final Float32List rampDown = new Float32List.fromList(ramp.reversed.toList());
   double rampDuration;

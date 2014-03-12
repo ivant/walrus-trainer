@@ -17,6 +17,7 @@ class TrainerUI {
   SelectElement levelSelect;
   TextInputElement alphabetElem;
   SelectElement letterCountSelect;
+  SelectElement speedSelect;
   ButtonElement startStopButton;
   Element playedLetterElem;
   Element typedLetterElem;
@@ -32,11 +33,13 @@ class TrainerUI {
   final String LS_ALPHABET = "alphabet";
   final String LS_LEVEL_SELECT = "levelSelect";
   final String LS_LETTER_COUNT = "trainerWidth";
+  final String LS_WPM = "wpm";
 
   TrainerUI() {
     levelSelect = querySelector("#level");
     alphabetElem = querySelector("#alphabet");
     letterCountSelect = querySelector("#letterCount");
+    speedSelect = querySelector("#speed");
     startStopButton = querySelector("#startStopButton");
     playedLetterElem = querySelector("#playedLetter");
     typedLetterElem = querySelector("#typedLetter");
@@ -45,17 +48,20 @@ class TrainerUI {
     assert(levelSelect != null);
     assert(alphabetElem != null);
     assert(letterCountSelect != null);
+    assert(speedSelect != null);
     assert(startStopButton != null);
     assert(playedLetterElem != null);
     assert(typedLetterElem != null);
     assert(letterChart != null);
 
     loadLevelSelect();
+    loadSpeedSelect();
     loadAlphabet();
     loadLetterCount();
     updateLetterCount();
 
     levelSelect.onChange.listen((e) => updateLevelSelect());
+    speedSelect.onChange.listen((e) => updateSpeedSelect());
     alphabetElem.onChange.listen((e) => updateAlphabet());
     letterCountSelect.onChange.listen((e) => updateLetterCount());
     startStopButton.onClick.listen((d) => startStopClicked());
@@ -83,6 +89,24 @@ class TrainerUI {
       indices = [0, 1, 2, 3, 4];
     }
     KochMethod.populateSelectWithLevels(levelSelect, indices);
+  }
+
+  void loadSpeedSelect() {
+    String speedStr = window.localStorage[LS_WPM];
+    int speed = 20;
+    if (speedStr != null) {
+      try {
+        speed = int.parse(speedStr);
+      } catch (e) {
+      }
+    }
+    for (int i = 0; i < speedSelect.options.length; ++i) {
+      if (speedSelect.options[i].value == speed.toString()) {
+        speedSelect.options[i].selected = true;
+        break;
+      }
+    }
+    trainer.setWpm(speed);
   }
 
   void loadAlphabet() {
@@ -120,6 +144,21 @@ class TrainerUI {
     window.localStorage[LS_ALPHABET] = alphabetElem.value;
   }
 
+  void updateLetterCount() {
+    letterCount = int.parse(letterCountSelect.value);
+    window.localStorage[LS_LETTER_COUNT] = (letterCount - 1).toString();
+
+    String boxWidth = letterCount.toString() +'.5em';
+    playedLetterElem.style.width = boxWidth;
+    typedLetterElem.style.width = boxWidth;
+  }
+
+  void updateSpeedSelect() {
+    int speed = int.parse(speedSelect.value);
+    window.localStorage[LS_WPM] = speed.toString();
+    trainer.setWpm(speed);
+  }
+
   void startStopClicked() {
     if (!started) {
       start();
@@ -132,6 +171,7 @@ class TrainerUI {
     levelSelect.disabled = !enabled;
     alphabetElem.disabled = !enabled;
     letterCountSelect.disabled = !enabled;
+    speedSelect.disabled = !enabled;
   }
 
   void stop() {
@@ -210,15 +250,6 @@ class TrainerUI {
   void updateLetterChart() {
     plotLetterChart(letterChart, trainer.letterDelayEMA);
   }
-
-  void updateLetterCount() {
-    letterCount = int.parse(letterCountSelect.value);
-    window.localStorage[LS_LETTER_COUNT] = (letterCount - 1).toString();
-
-    String boxWidth = letterCount.toString() +'.5em';
-    playedLetterElem.style.width = boxWidth;
-    typedLetterElem.style.width = boxWidth;
-  }
 }
 
 class Guess {
@@ -266,6 +297,10 @@ class Trainer {
   Trainer() {
     MorseCode.initShortCodes();
     letterDelayEMA = loadLetterDelays();
+  }
+
+  void setWpm(num wpm) {
+    morseAudio.setWpm(wpm);
   }
 
   Map<String, double> loadLetterDelays() {
