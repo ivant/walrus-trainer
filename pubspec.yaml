@@ -3,3 +3,5 @@ description: Morse Code Trainer
 dependencies:
   browser: any
   chart: any
+dev_dependencies:
+  unittest: any

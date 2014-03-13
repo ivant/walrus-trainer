@@ -291,7 +291,6 @@ class Guess {
 class Trainer {
   final double MU = 1.5;
   final double ALPHA = 0.5;
-  final Random rng = new Random();
   final MorseAudio morseAudio = new MorseAudio(new AudioContext());
 
   String alphabet;
@@ -415,22 +414,7 @@ class Trainer {
   }
 
   String chooseLetter() {
-    double sum = 0.0;
-    for (int i = 0; i < alphabet.length; ++i) {
-      String letter = alphabet[i];
-      double ema = letterDelayEMA[letter];
-      sum += ema;
-    }
-
-
-    double choice = rng.nextDouble() * sum;
-    String chosenLetter = '';
-    for (int i = 0; i < alphabet.length && choice > 0; ++i) {
-      chosenLetter = alphabet[i];
-      choice -= letterDelayEMA[chosenLetter];
-    }
-
-    return chosenLetter;
+    return pickRandom(alphabet, letterDelayEMA);
   }
 
   String chooseLetters() {
