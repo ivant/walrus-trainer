@@ -65,7 +65,8 @@ class TrainerUI {
     alphabetElem.onChange.listen((e) => updateAlphabet());
     letterCountSelect.onChange.listen((e) => updateLetterCount());
     startStopButton.onClick.listen((d) => startStopClicked());
-    document.onKeyUp.listen(onKeyUp);
+    document.onKeyDown.listen(onKeyDown);
+    document.onKeyPress.listen(onKeyPress);
     startStopButton.focus();
   }
 
@@ -202,21 +203,29 @@ class TrainerUI {
     currentGuess = trainer.restart();
   }
 
-  void onKeyUp(KeyboardEvent k) {
+  void onKeyDown(KeyboardEvent k) {
+    if (!started) {
+      return;
+    }
+    if (k.keyCode == 27) {
+      stop();
+    }
+  }
+
+  void onKeyPress(KeyboardEvent k) {
     if (!started) {
       return;
     }
 
-    switch (k.keyCode) {
-      case 27:
-        stop();
-        return;
-      case 32:
-        trainer.skip();
-        break;
-      default:
-        trainer.onTypedLetter(new String.fromCharCode(k.keyCode));
-        break;
+    String key = new String.fromCharCode(k.keyCode);
+    if (key == ' ') {
+      trainer.skip();
+    } else if (MorseCode.shortCodes.containsKey(key) ||
+               MorseCode.longCodes.containsKey(key)) {
+      trainer.onTypedLetter(new String.fromCharCode(k.keyCode));
+    } else {
+      // unknown key, ignore
+      return;
     }
 
     if (currentGuess.completed) {
