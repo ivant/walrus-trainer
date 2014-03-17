@@ -35,6 +35,10 @@ class TrainerUI {
   final String LS_LETTER_COUNT = "trainerWidth";
   final String LS_WPM = "wpm";
 
+  static final List<int> DEFAULT_LEVEL_SELECT = [0];
+  static final int DEFAULT_LETTER_COUNT = 1;
+  static final int DEFAULT_WPM = 20;
+
   TrainerUI() {
     levelSelect = querySelector("#level");
     alphabetElem = querySelector("#alphabet");
@@ -87,14 +91,14 @@ class TrainerUI {
       }
     }
     if (indices.length == 0) {
-      indices = [0, 1, 2, 3, 4];
+      indices = DEFAULT_LEVEL_SELECT;
     }
     KochMethod.populateSelectWithLevels(levelSelect, indices);
   }
 
   void loadSpeedSelect() {
     String speedStr = window.localStorage[LS_WPM];
-    int speed = 20;
+    int speed = DEFAULT_WPM;
     if (speedStr != null) {
       try {
         speed = int.parse(speedStr);
@@ -120,7 +124,7 @@ class TrainerUI {
 
   void loadLetterCount() {
     String letterCountStr = window.localStorage[LS_LETTER_COUNT];
-    int selected = 3;
+    int selected = DEFAULT_LETTER_COUNT - 1;
     if (letterCountStr != null) {
       try {
         selected = int.parse(letterCountStr);
